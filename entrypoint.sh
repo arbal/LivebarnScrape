@@ -18,26 +18,24 @@ else
     echo ""
 fi
 
-# Check if database exists and has data
-DB_EXISTS=false
+# Check the database with Python's stdlib sqlite3; the base image does not
+# need the unrelated sqlite3 command-line package for this read-only check.
+DB_STATE="$(python startup_db.py /data/livebarn.db 2>/dev/null)" || DB_STATE="query-error"
 DB_HAS_DATA=false
 
-if [ -f /data/livebarn.db ]; then
-    DB_EXISTS=true
-    
-    # Check if database has venues/surfaces (quick check)
-    VENUE_COUNT=$(sqlite3 /data/livebarn.db "SELECT COUNT(*) FROM venues;" 2>/dev/null || echo "0")
-    
-    if [ "$VENUE_COUNT" -gt "0" ]; then
-        DB_HAS_DATA=true
-        echo "✅ Database found at /data/livebarn.db"
-        echo "   📊 Contains $VENUE_COUNT venues"
-        echo ""
-    fi
+if [ "${DB_STATE%% *}" = "populated" ]; then
+    DB_HAS_DATA=true
+    VENUE_COUNT="${DB_STATE#* }"
+    echo "✅ Database found at /data/livebarn.db"
+    echo "   📊 Contains $VENUE_COUNT venues"
+    echo ""
+elif [ "${DB_STATE%% *}" = "query-error" ]; then
+    echo "⚠️  Database query failed; catalog check will be retried"
+    echo ""
 fi
 
 # Auto-build catalog if needed
-if [ "$DB_EXISTS" = false ] || [ "$DB_HAS_DATA" = false ]; then
+if [ "$DB_HAS_DATA" = false ]; then
     echo "🔨 Building venue catalog (first-time setup)..."
     echo "   This may take 1-2 minutes..."
     echo ""

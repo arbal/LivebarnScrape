@@ -31,6 +31,7 @@ RUN playwright install --with-deps chromium
 COPY VERSION .
 COPY livebarn_manager.py .
 COPY build_catalog.py .
+COPY startup_db.py .
 COPY refresh_single.py .
 COPY livebarn_api.py .
 COPY hls_relay.py .
