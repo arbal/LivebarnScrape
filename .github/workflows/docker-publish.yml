@@ -42,6 +42,8 @@ jobs:
           context: .
           file: ./Dockerfile
           push: false
+          tags: livebarnscrape:ci-amd64
+          load: true
           platforms: linux/amd64
           build-args: |
             BUILD_SOURCE=https://github.com/${{ github.repository }}
@@ -53,11 +55,15 @@ jobs:
           context: .
           file: ./Dockerfile
           push: false
+          tags: livebarnscrape:ci-arm64
+          load: true
           platforms: linux/arm64
           build-args: |
             BUILD_SOURCE=https://github.com/${{ github.repository }}
             BUILD_REVISION=${{ github.sha }}
             BUILD_VERSION=${{ steps.version.outputs.version }}
+      - name: Smoke-test arm64 image
+        run: docker run --rm --platform linux/arm64 --entrypoint python livebarnscrape:ci-arm64 -c 'import livebarn_manager; from startup_db import classify_database; from pathlib import Path; print("arm64-smoke=PASS", livebarn_manager.get_health_status()["schedule"]["state"], classify_database(Path("/tmp/absent.db"))[0])'
 
   build-and-push:
     if: startsWith(github.ref, 'refs/tags/v') || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
