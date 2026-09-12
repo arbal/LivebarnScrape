@@ -80,5 +80,26 @@ class LogPollFilterTests(unittest.TestCase):
         )
         self.assertTrue(livebarn_manager.LogPollFilter().filter(record))
 
+    def test_health_status_contains_only_safe_readiness_details(self):
+        original_cache = livebarn_manager.SCHEDULE_CACHE.copy()
+        try:
+            livebarn_manager.SCHEDULE_CACHE.update(
+                {
+                    "events_by_surface": {"surface": ["event-1", "event-2"]},
+                    "last_updated": livebarn_manager.datetime(2026, 1, 1),
+                }
+            )
+            response = livebarn_manager.get_health_status()
+            serialized = str(response)
+            self.assertEqual(response["status"], "ok")
+            self.assertEqual(response["readiness"], "ready")
+            self.assertEqual(response["schedule"]["event_count"], 2)
+            self.assertNotIn("password", serialized.lower())
+            self.assertNotIn("token", serialized.lower())
+            self.assertNotIn("pin", serialized.lower())
+        finally:
+            livebarn_manager.SCHEDULE_CACHE.clear()
+            livebarn_manager.SCHEDULE_CACHE.update(original_cache)
+
 if __name__ == "__main__":
     unittest.main()

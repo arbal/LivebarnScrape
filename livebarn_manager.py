@@ -322,6 +322,22 @@ def refresh_schedule():
         logger.error(f" Failed to refresh schedules: {e}")
 
 
+def get_health_status() -> dict:
+    """Return liveness plus safe in-memory schedule readiness details."""
+    events_by_surface = SCHEDULE_CACHE.get('events_by_surface') or {}
+    last_updated = SCHEDULE_CACHE.get('last_updated')
+    return {
+        'status': 'ok',
+        'version': APP_VERSION,
+        'readiness': 'ready' if last_updated is not None else 'starting',
+        'schedule': {
+            'last_refresh': last_updated.isoformat() if last_updated else None,
+            'surface_count': len(events_by_surface),
+            'event_count': sum(len(events) for events in events_by_surface.values()),
+        },
+    }
+
+
 def checkpoint_database():
     """
     Force WAL checkpoint on shutdown to ensure all data is written to main database file.
@@ -2500,8 +2516,8 @@ def require_admin_auth():
 
 @app.route('/health')
 def health():
-    """Unauthenticated container health endpoint."""
-    return jsonify({'status': 'ok', 'version': APP_VERSION})
+    """Unauthenticated liveness endpoint with secret-free readiness details."""
+    return jsonify(get_health_status())
 
 @app.route('/')
 def index():
