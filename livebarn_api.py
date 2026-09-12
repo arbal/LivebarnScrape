@@ -3,6 +3,7 @@
 import base64
 import hashlib
 import json
+import re
 import sqlite3
 import time
 import uuid
@@ -77,13 +78,82 @@ def create_dpop_proof(
     return f"{protected}.{payload}.{_base64url(signature)}"
 
 
+def _hls_attributes(value: str) -> dict[str, str]:
+    """Parse an HLS attribute list without depending on a third-party parser."""
+    attributes: dict[str, str] = {}
+    parts = re.findall(r'(?:[^,\"]|\"[^\"]*\")+', value)
+    for part in parts:
+        if "=" not in part:
+            continue
+        key, item = part.split("=", 1)
+        attributes[key.strip().upper()] = item.strip().strip('"')
+    return attributes
+
+
+def _positive_number(value: str | None) -> float:
+    try:
+        number = float(value or "")
+    except (TypeError, ValueError):
+        return 0.0
+    return number if number > 0 else 0.0
+
+
+def _resolution_score(value: str | None) -> tuple[int, int, int]:
+    match = re.fullmatch(r"(\d+)x(\d+)", value or "")
+    if not match:
+        return (0, 0, 0)
+    width, height = (int(part) for part in match.groups())
+    return (width * height, height, width)
+
+
 def first_playlist_url(master_url: str, playlist_text: str) -> str:
-    """Return the first playable child URL from an HLS master playlist."""
-    for line in playlist_text.splitlines():
-        candidate = line.strip()
-        if candidate and not candidate.startswith("#"):
-            return urljoin(master_url, candidate)
-    raise LiveBarnError("LiveBarn returned an empty playback playlist")
+    """Return the highest-quality playable child from an HLS master playlist.
+
+    If the response is already a media playlist, return its URL so the relay
+    can parse its segments. Malformed or empty master playlists fail clearly.
+    """
+    candidates: list[tuple[tuple[float, ...] | tuple, str]] = []
+    pending: dict[str, str] | None = None
+    saw_master_tag = False
+    saw_media_tag = False
+
+    for raw_line in playlist_text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("#EXT-X-STREAM-INF:"):
+            saw_master_tag = True
+            pending = _hls_attributes(line.split(":", 1)[1])
+            continue
+        if line.startswith("#"):
+            if line.startswith("#EXTINF:") or line.startswith("#EXT-X-TARGETDURATION:"):
+                saw_media_tag = True
+            continue
+        if pending is None:
+            continue
+
+        bandwidth = _positive_number(pending.get("BANDWIDTH"))
+        average_bandwidth = _positive_number(pending.get("AVERAGE-BANDWIDTH"))
+        effective_bandwidth = average_bandwidth or bandwidth
+        area, height, width = _resolution_score(pending.get("RESOLUTION"))
+        # Bandwidth is the primary quality signal. Resolution breaks ties and
+        # also provides deterministic selection when bandwidth is absent.
+        score = (
+            float(effective_bandwidth > 0),
+            effective_bandwidth,
+            float(area),
+            bandwidth,
+            float(height),
+            float(width),
+        )
+        candidates.append((score, urljoin(master_url, line)))
+        pending = None
+
+    if candidates:
+        return max(candidates, key=lambda item: (item[0], item[1]))[1]
+    if not saw_master_tag and saw_media_tag:
+        return master_url
+    raise LiveBarnError("LiveBarn returned an empty or malformed playback playlist")
 
 
 class LiveBarnClient:

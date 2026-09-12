@@ -9,7 +9,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
 
-from livebarn_api import LiveBarnClient, create_dpop_proof, first_playlist_url
+from livebarn_api import LiveBarnClient, LiveBarnError, create_dpop_proof, first_playlist_url
 
 
 def decode_segment(value: str) -> bytes:
@@ -68,6 +68,67 @@ class LiveBarnApiTests(unittest.TestCase):
             "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nvideo/chunklist.m3u8\n",
         )
         self.assertEqual(result, "https://cdn.example/video/chunklist.m3u8")
+
+    def test_first_playlist_url_selects_highest_bandwidth_not_first(self):
+        result = first_playlist_url(
+            "https://cdn.example/master.m3u8",
+            """#EXTM3U
+#EXT-X-STREAM-INF:RESOLUTION=640x360,BANDWIDTH=800000
+low.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1920x1080
+high.m3u8
+""",
+        )
+        self.assertEqual(result, "https://cdn.example/high.m3u8")
+
+    def test_first_playlist_url_uses_resolution_when_bandwidth_missing(self):
+        result = first_playlist_url(
+            "https://cdn.example/master.m3u8",
+            """#EXTM3U
+#EXT-X-STREAM-INF:CODECS=\"avc1\",RESOLUTION=640x360
+low.m3u8
+#EXT-X-STREAM-INF:RESOLUTION=1280x720
+high.m3u8
+""",
+        )
+        self.assertEqual(result, "https://cdn.example/high.m3u8")
+
+    def test_first_playlist_url_uses_average_bandwidth_and_absolute_url(self):
+        result = first_playlist_url(
+            "https://cdn.example/master.m3u8?token=ignored",
+            """#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=500000,AVERAGE-BANDWIDTH=1900000
+https://video.example/high.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=1000000
+low.m3u8
+""",
+        )
+        self.assertEqual(result, "https://video.example/high.m3u8")
+
+    def test_first_playlist_url_supports_single_child(self):
+        self.assertEqual(
+            first_playlist_url(
+                "https://cdn.example/master.m3u8",
+                "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\nonly.m3u8\n",
+            ),
+            "https://cdn.example/only.m3u8",
+        )
+
+    def test_first_playlist_url_returns_media_playlist_url(self):
+        master_url = "https://cdn.example/media.m3u8"
+        self.assertEqual(
+            first_playlist_url(
+                master_url,
+                "#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXTINF:6,\nsegment.ts\n",
+            ),
+            master_url,
+        )
+
+    def test_first_playlist_url_rejects_empty_or_malformed_master(self):
+        for playlist in ("", "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\n"):
+            with self.subTest(playlist=playlist):
+                with self.assertRaises(LiveBarnError):
+                    first_playlist_url("https://cdn.example/master.m3u8", playlist)
 
 
 if __name__ == "__main__":
