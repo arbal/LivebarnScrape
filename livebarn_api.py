@@ -134,17 +134,17 @@ def first_playlist_url(master_url: str, playlist_text: str) -> str:
 
         bandwidth = _positive_number(pending.get("BANDWIDTH"))
         average_bandwidth = _positive_number(pending.get("AVERAGE-BANDWIDTH"))
-        effective_bandwidth = average_bandwidth or bandwidth
         area, height, width = _resolution_score(pending.get("RESOLUTION"))
-        # Bandwidth is the primary quality signal. Resolution breaks ties and
-        # also provides deterministic selection when bandwidth is absent.
+        # BANDWIDTH is the consistent primary metric. AVERAGE-BANDWIDTH is
+        # deliberately only a later tie-breaker: RFC 8216 defines it as an
+        # average, while BANDWIDTH is the peak estimate used for selection.
         score = (
-            float(effective_bandwidth > 0),
-            effective_bandwidth,
-            float(area),
+            float(bandwidth > 0),
             bandwidth,
+            float(area),
             float(height),
             float(width),
+            average_bandwidth,
         )
         candidates.append((score, urljoin(master_url, line)))
         pending = None

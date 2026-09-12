@@ -93,7 +93,7 @@ high.m3u8
         )
         self.assertEqual(result, "https://cdn.example/high.m3u8")
 
-    def test_first_playlist_url_uses_average_bandwidth_and_absolute_url(self):
+    def test_first_playlist_url_uses_bandwidth_before_average_and_absolute_url(self):
         result = first_playlist_url(
             "https://cdn.example/master.m3u8?token=ignored",
             """#EXTM3U
@@ -103,7 +103,31 @@ https://video.example/high.m3u8
 low.m3u8
 """,
         )
-        self.assertEqual(result, "https://video.example/high.m3u8")
+        self.assertEqual(result, "https://cdn.example/low.m3u8")
+
+    def test_first_playlist_url_uses_resolution_when_bandwidth_is_tied(self):
+        result = first_playlist_url(
+            "https://cdn.example/master.m3u8",
+            """#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=1000000,RESOLUTION=640x360
+low.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=1000000,RESOLUTION=1280x720
+high.m3u8
+""",
+        )
+        self.assertEqual(result, "https://cdn.example/high.m3u8")
+
+    def test_first_playlist_url_has_stable_tie_break(self):
+        result = first_playlist_url(
+            "https://cdn.example/master.m3u8",
+            """#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=1000000,RESOLUTION=1280x720
+z.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=1000000,RESOLUTION=1280x720
+a.m3u8
+""",
+        )
+        self.assertEqual(result, "https://cdn.example/z.m3u8")
 
     def test_first_playlist_url_supports_single_child(self):
         self.assertEqual(

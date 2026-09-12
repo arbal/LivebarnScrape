@@ -267,12 +267,14 @@ See existing providers in `schedule_providers/` for complete examples.
 Credentials can also be saved from the **LiveBarn Sign-in** card on the web admin page. A saved admin override takes precedence over environment variables and persists in the SQLite database. Select **Use .env** to delete the saved override and return to `LIVEBARN_EMAIL`/`LIVEBARN_PASSWORD`. The UI never returns the saved password. Set `ADMIN_PASSWORD` to protect the admin UI, venue/favorite actions, and `/api/*` routes with HTTP Basic authentication. Playlist, XMLTV, health, and stream-proxy routes remain open for DVR clients.
 
 The unauthenticated `/health` response includes the application version plus
-secret-free schedule readiness and count fields. It does not test LiveBarn
-connectivity and should be treated as a local process/readiness signal.
+a `schedule` object whose state is `never-refreshed` or `refreshed`, with the
+last refresh time and safe counts. It does not test LiveBarn connectivity;
+schedule state is not a claim that every upstream provider or stream is
+healthy.
 
 Stream refreshes use LiveBarn's playback API through `curl-cffi`. HLS master
 playlists select the highest available rendition deterministically using
-bandwidth and then resolution metadata; an already-media playlist is passed
+`BANDWIDTH` first, then resolution, then `AVERAGE-BANDWIDTH`; an already-media playlist is passed
 through to the relay. The first sign-in uses a short browser-assisted Auth0
 step because LiveBarn protects it with AWS WAF; its DPoP-bound access token is
 then cached in `/data/livebarn.db` for roughly 12 hours. Legacy accounts may

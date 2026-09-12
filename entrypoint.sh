@@ -20,7 +20,8 @@ fi
 
 # Check the database with Python's stdlib sqlite3; the base image does not
 # need the unrelated sqlite3 command-line package for this read-only check.
-DB_STATE="$(python startup_db.py /data/livebarn.db 2>/dev/null)" || DB_STATE="query-error"
+DB_PATH="${DB_PATH:-/data/livebarn.db}"
+DB_STATE="$(python startup_db.py "$DB_PATH" 2>/dev/null)" || DB_STATE="query-error"
 DB_HAS_DATA=false
 
 if [ "${DB_STATE%% *}" = "populated" ]; then
@@ -30,7 +31,8 @@ if [ "${DB_STATE%% *}" = "populated" ]; then
     echo "   📊 Contains $VENUE_COUNT venues"
     echo ""
 elif [ "${DB_STATE%% *}" = "query-error" ]; then
-    echo "⚠️  Database query failed; catalog check will be retried"
+    echo "❌ Database query failed; refusing to rebuild or overwrite persisted state"
+    exit 1
     echo ""
 fi
 

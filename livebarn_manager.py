@@ -323,14 +323,14 @@ def refresh_schedule():
 
 
 def get_health_status() -> dict:
-    """Return liveness plus safe in-memory schedule readiness details."""
+    """Return cheap liveness plus explicitly scoped schedule state."""
     events_by_surface = SCHEDULE_CACHE.get('events_by_surface') or {}
     last_updated = SCHEDULE_CACHE.get('last_updated')
     return {
         'status': 'ok',
         'version': APP_VERSION,
-        'readiness': 'ready' if last_updated is not None else 'starting',
         'schedule': {
+            'state': 'refreshed' if last_updated is not None else 'never-refreshed',
             'last_refresh': last_updated.isoformat() if last_updated else None,
             'surface_count': len(events_by_surface),
             'event_count': sum(len(events) for events in events_by_surface.values()),

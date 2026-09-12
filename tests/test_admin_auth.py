@@ -92,11 +92,26 @@ class LogPollFilterTests(unittest.TestCase):
             response = livebarn_manager.get_health_status()
             serialized = str(response)
             self.assertEqual(response["status"], "ok")
-            self.assertEqual(response["readiness"], "ready")
+            self.assertEqual(response["schedule"]["state"], "refreshed")
             self.assertEqual(response["schedule"]["event_count"], 2)
             self.assertNotIn("password", serialized.lower())
             self.assertNotIn("token", serialized.lower())
             self.assertNotIn("pin", serialized.lower())
+        finally:
+            livebarn_manager.SCHEDULE_CACHE.clear()
+            livebarn_manager.SCHEDULE_CACHE.update(original_cache)
+
+    def test_health_status_is_explicit_before_first_refresh(self):
+        original_cache = livebarn_manager.SCHEDULE_CACHE.copy()
+        try:
+            livebarn_manager.SCHEDULE_CACHE.clear()
+            livebarn_manager.SCHEDULE_CACHE.update(
+                {"events_by_surface": {}, "last_updated": None}
+            )
+            response = livebarn_manager.get_health_status()
+            self.assertEqual(response["status"], "ok")
+            self.assertEqual(response["schedule"]["state"], "never-refreshed")
+            self.assertIsNone(response["schedule"]["last_refresh"])
         finally:
             livebarn_manager.SCHEDULE_CACHE.clear()
             livebarn_manager.SCHEDULE_CACHE.update(original_cache)
