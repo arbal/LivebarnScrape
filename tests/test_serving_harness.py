@@ -1,6 +1,7 @@
 import os
 import signal
 import socket
+import sys
 import subprocess
 import time
 import unittest
@@ -15,7 +16,7 @@ class ServingHarnessTests(unittest.TestCase):
             port = str(probe.getsockname()[1])
         process = subprocess.Popen(
                 [
-                "/tmp/livebarnscrape-pass-venv/bin/gunicorn",
+                sys.executable, "-m", "gunicorn",
                 "--config", "/dev/null",
                 "--workers", "1",
                 "--worker-class", "gthread",
