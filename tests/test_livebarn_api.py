@@ -1,5 +1,6 @@
 import base64
 import json
+import sqlite3
 import tempfile
 import time
 import unittest
@@ -9,7 +10,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
 
-from livebarn_api import LiveBarnClient, LiveBarnError, create_dpop_proof, first_playlist_url
+from livebarn_api import LiveBarnClient, LiveBarnError, create_dpop_proof, credential_fingerprint, first_playlist_url
 
 
 def decode_segment(value: str) -> bytes:
@@ -61,6 +62,44 @@ class LiveBarnApiTests(unittest.TestCase):
                     {"email": "user@example.com", "password": "changed"}
                 )
             )
+
+    def test_missing_and_expired_cached_sessions_are_rejected(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "livebarn.db"
+            credentials = {"email": "fake@example.com", "password": "fake-password"}
+            client = LiveBarnClient(db_path)
+            self.assertFalse(client._load_cached_session(credentials))
+            client.key = ec.generate_private_key(ec.SECP256R1())
+            client.access_token = "FAKE-ACCESS-TOKEN"
+            client.user_id = "FAKE-USER"
+            client._save_session(credentials, time.time() - 1)
+            self.assertFalse(LiveBarnClient(db_path)._load_cached_session(credentials))
+
+    def test_invalid_dpop_key_and_empty_token_are_rejected(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "livebarn.db"
+            credentials = {"email": "fake@example.com", "password": "fake-password"}
+            client = LiveBarnClient(db_path)
+            client.key = ec.generate_private_key(ec.SECP256R1())
+            client.access_token = ""
+            client.user_id = "FAKE-USER"
+            client._save_session(credentials, time.time() + 3600)
+            with sqlite3.connect(db_path) as connection:
+                connection.execute(
+                    "UPDATE livebarn_oauth_session SET dpop_private_key = ?",
+                    ("not-a-private-key",),
+                )
+            self.assertFalse(LiveBarnClient(db_path)._load_cached_session(credentials))
+
+    def test_credential_fingerprint_changes_without_revealing_input(self):
+        first = credential_fingerprint(
+            {"email": "fake@example.com", "password": "fake-password"}
+        )
+        second = credential_fingerprint(
+            {"email": "fake@example.com", "password": "changed-fake-password"}
+        )
+        self.assertNotEqual(first, second)
+        self.assertEqual(len(first), 64)
 
     def test_first_playlist_url_resolves_relative_child(self):
         result = first_playlist_url(

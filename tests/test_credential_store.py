@@ -1,4 +1,5 @@
 import json
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -54,6 +55,25 @@ class CredentialStoreTests(unittest.TestCase):
         self.assertEqual(status["email_hint"], "a***@example.com")
         self.assertNotIn("admin-secret", serialized)
         self.assertNotIn("environment-secret", serialized)
+
+    def test_partial_environment_credentials_are_rejected(self):
+        with self.assertRaises(ValueError):
+            resolve_credentials(
+                self.db_path,
+                {"LIVEBARN_EMAIL": "env@example.com", "LIVEBARN_PASSWORD": ""},
+            )
+
+    def test_saving_new_credentials_clears_cached_oauth_session(self):
+        with sqlite3.connect(self.db_path) as connection:
+            connection.execute(
+                "CREATE TABLE livebarn_oauth_session (id INTEGER PRIMARY KEY)"
+            )
+            connection.execute("INSERT INTO livebarn_oauth_session VALUES (1)")
+        save_credentials(self.db_path, "new@example.com", "new-fake-secret")
+        with sqlite3.connect(self.db_path) as connection:
+            self.assertIsNone(connection.execute(
+                "SELECT 1 FROM livebarn_oauth_session"
+            ).fetchone())
 
 
 if __name__ == "__main__":
