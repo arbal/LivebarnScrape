@@ -30,6 +30,14 @@ snapshots. If validation or startup fails, restore the pre-restore backup.
 
 ## Image provenance
 
+CI supplies `BUILD_SOURCE` and `BUILD_REVISION` from the repository and commit
+that actually produced the image. This keeps fork revisions from claiming the
+upstream repository. Local builds should supply explicit non-secret metadata,
+for example `--build-arg BUILD_SOURCE=https://github.com/arbal/LivebarnScrape
+--build-arg BUILD_REVISION=$(git rev-parse HEAD)`. If metadata is not supplied,
+the image labels deliberately report `unknown` rather than asserting a false
+repository/revision relationship.
+
 Inspect a built image with:
 
     docker image inspect IMAGE --format source={{index .Config.Labels "org.opencontainers.image.source"}} revision={{index .Config.Labels "org.opencontainers.image.revision"}} version={{index .Config.Labels "org.opencontainers.image.version"}} created={{index .Config.Labels "org.opencontainers.image.created"}}

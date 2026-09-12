@@ -1,8 +1,8 @@
 # Use Python 3.11 slim as base
 FROM python:3.11-slim
 
-ARG BUILD_SOURCE=https://github.com/kineticman/LivebarnScrape
-ARG BUILD_REVISION=local
+ARG BUILD_SOURCE=unknown
+ARG BUILD_REVISION=unknown
 ARG BUILD_VERSION=dev
 ARG BUILD_CREATED=unknown
 
