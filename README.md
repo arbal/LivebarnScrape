@@ -274,12 +274,21 @@ healthy.
 
 Stream refreshes use LiveBarn's playback API through `curl-cffi`. HLS master
 playlists select the highest available rendition deterministically using
-`BANDWIDTH` first, then resolution, then `AVERAGE-BANDWIDTH`; an already-media playlist is passed
+`BANDWIDTH` first, then resolution, then `AVERAGE-BANDWIDTH`; an already-media
+playlist is passed
 through to the relay. The first sign-in uses a short browser-assisted Auth0
 step because LiveBarn protects it with AWS WAF; its DPoP-bound access token is
 then cached in `/data/livebarn.db` for roughly 12 hours. Legacy accounts may
 first need to sign in successfully at `https://watch.livebarn.com` in a normal
 browser and complete any migration or CAPTCHA prompts shown there.
+
+## Operations
+
+The container uses a single Gunicorn gthread worker process with eight
+threads. This avoids duplicating the APScheduler and process-local schedule
+cache while allowing concurrent long-lived stream requests. See
+OPERATIONS.md for redaction behavior, SQLite integrity and backup/restore
+procedures, and safe image provenance inspection.
 
 ### Port Mapping
 

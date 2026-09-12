@@ -60,4 +60,4 @@ fi
 # Start the manager
 echo "🚀 Starting LiveBarn Manager v${APP_VERSION}..."
 echo ""
-exec python livebarn_manager.py
+exec gunicorn --config gunicorn.conf.py livebarn_manager:app

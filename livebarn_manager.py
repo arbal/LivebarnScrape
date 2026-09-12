@@ -32,6 +32,7 @@ from credential_store import (
     save_credentials,
 )
 from hls_relay import HlsRelayError, iter_hls_stream
+from safe_logging import RedactingFormatter
 # Import modular schedule providers
 from schedule_providers import ALL_PROVIDERS
 from schedule_utils import group_events_by_surface, fill_gaps_with_open_ice 
@@ -149,6 +150,9 @@ def get_channel_variants(favorite: Dict[str, str]) -> List[Dict[str, str]]:
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
+_redacting_formatter = RedactingFormatter('%(asctime)s [%(levelname)s] %(message)s')
+for _handler in logging.getLogger().handlers:
+    _handler.setFormatter(_redacting_formatter)
 
 app = Flask(__name__)
 
@@ -182,7 +186,7 @@ class UILogHandler(logging.Handler):
 # Attach UI log handler to root logger
 _ui_handler = UILogHandler()
 _ui_handler.setLevel(logging.INFO)
-_ui_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+_ui_handler.setFormatter(_redacting_formatter)
 logging.getLogger().addHandler(_ui_handler)
 
 # Add filter to Flask's werkzeug logger to exclude polling requests
@@ -241,6 +245,10 @@ SCHEDULE_CACHE = {
     'events_by_surface': {},
     'last_updated': None
 }
+
+scheduler = None
+_runtime_started = False
+_runtime_lock = threading.Lock()
 
 STREAM_REFRESH_LOCKS: Dict[int, threading.Lock] = {}
 STREAM_REFRESH_LOCKS_GUARD = threading.Lock()
@@ -365,7 +373,7 @@ def graceful_shutdown(signum, frame):
     
     # Shutdown scheduler if running
     try:
-        if 'scheduler' in globals() and scheduler.running:
+        if scheduler is not None and scheduler.running:
             logger.info("⏸️  Shutting down scheduler...")
             scheduler.shutdown(wait=False)
     except Exception as e:
@@ -373,6 +381,31 @@ def graceful_shutdown(signum, frame):
     
     logger.info("👋 Shutdown complete")
     sys.exit(0)
+
+
+def start_runtime(run_initial_refresh: bool = True) -> None:
+    """Initialize the database and exactly one scheduler for this process."""
+    global scheduler, _runtime_started
+    with _runtime_lock:
+        if _runtime_started:
+            return
+        init_db_if_needed()
+        scheduler = BackgroundScheduler()
+        scheduler.add_job(
+            func=refresh_schedule,
+            trigger='cron',
+            hour=3,
+            minute=0,
+            id='schedule_refresh',
+            name='Daily Schedule Refresh (All Providers)',
+        )
+        scheduler.start()
+        atexit.register(checkpoint_database)
+        _runtime_started = True
+    logger.info(" Scheduler started - Schedule refresh at 3:00 AM daily")
+    if run_initial_refresh:
+        logger.info(" Performing initial schedule refresh...")
+        refresh_schedule()
 
 
 # --- HTML Template (Embedded) ---
@@ -3281,10 +3314,7 @@ if __name__ == '__main__':
     signal.signal(signal.SIGTERM, graceful_shutdown)
     signal.signal(signal.SIGINT, graceful_shutdown)
     
-    # Also register atexit handler as fallback for normal exit
-    atexit.register(checkpoint_database)
-    
-    init_db_if_needed()
+    start_runtime(run_initial_refresh=True)
     
     print("=" * 70)
     print(f" LiveBarn Favorites Manager & Streamlink Proxy v{APP_VERSION} ".center(70, "="))
@@ -3299,26 +3329,6 @@ if __name__ == '__main__':
     print("   2. Get the proxy playlist URL for your video player.")
     print()
     
-    # Initialize and start APScheduler
-    scheduler = BackgroundScheduler()
-    
-    # Schedule refresh at 3:00 AM daily (all providers)
-    scheduler.add_job(
-        func=refresh_schedule,
-        trigger='cron',
-        hour=3,
-        minute=0,
-        id='schedule_refresh',
-        name='Daily Schedule Refresh (All Providers)'
-    )
-    
-    scheduler.start()
-    logger.info(" Scheduler started - Schedule refresh at 3:00 AM daily")
-    
-    # Do initial schedule refresh on startup
-    logger.info(" Performing initial schedule refresh...")
-    refresh_schedule()
-    
     print("\n Background scheduler active")
     print("   → Schedule refreshes daily at 3:00 AM")
     print("\nPress Ctrl+C to stop the server.")
@@ -3328,9 +3338,11 @@ if __name__ == '__main__':
         app.run(host='0.0.0.0', port=SERVER_PORT, debug=False, threaded=True, use_reloader=False)
     except (KeyboardInterrupt, SystemExit):
         logger.info("Shutting down scheduler...")
-        scheduler.shutdown()
+        if scheduler is not None:
+            scheduler.shutdown()
         # graceful_shutdown will handle the rest
     except Exception as e:
         logger.error(f"Server crashed: {e}")
-        scheduler.shutdown()
+        if scheduler is not None:
+            scheduler.shutdown()
         checkpoint_database()  # Save on crash too
