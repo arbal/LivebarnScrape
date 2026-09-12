@@ -1,6 +1,16 @@
 # Use Python 3.11 slim as base
 FROM python:3.11-slim
 
+ARG BUILD_SOURCE=https://github.com/kineticman/LivebarnScrape
+ARG BUILD_REVISION=local
+ARG BUILD_VERSION=dev
+ARG BUILD_CREATED=unknown
+
+LABEL org.opencontainers.image.source="${BUILD_SOURCE}" \
+      org.opencontainers.image.revision="${BUILD_REVISION}" \
+      org.opencontainers.image.version="${BUILD_VERSION}" \
+      org.opencontainers.image.created="${BUILD_CREATED}"
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive \
@@ -30,8 +40,12 @@ RUN playwright install --with-deps chromium
 # Copy application files
 COPY VERSION .
 COPY livebarn_manager.py .
+COPY safe_logging.py .
+COPY gunicorn.conf.py .
 COPY build_catalog.py .
 COPY startup_db.py .
+COPY db_integrity.py .
+COPY db_backup.py .
 COPY refresh_single.py .
 COPY livebarn_api.py .
 COPY hls_relay.py .
@@ -56,5 +70,5 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:5000/health || exit 1
 
-# Run the manager via entrypoint
+# Run the manager with the production-serving entrypoint
 ENTRYPOINT ["./entrypoint.sh"]

@@ -2,12 +2,65 @@ name: Build and publish Docker image
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "**" ]
     tags: [ "v*" ]
   workflow_dispatch:
 
 jobs:
+  validate:
+    if: github.event_name == 'workflow_dispatch' || github.ref != format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install test dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Read application version
+        id: version
+        shell: bash
+        run: echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
+      - name: Run unit and syntax checks
+        run: |
+          python -m unittest discover -s tests -v
+          python -m compileall -q .
+          bash -n entrypoint.sh
+      - name: Validate Compose configuration
+        run: docker compose config
+      - name: Build amd64 image without publishing
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          platforms: linux/amd64
+          build-args: |
+            BUILD_SOURCE=https://github.com/${{ github.repository }}
+            BUILD_REVISION=${{ github.sha }}
+            BUILD_VERSION=${{ steps.version.outputs.version }}
+      - name: Build arm64 image without publishing
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          platforms: linux/arm64
+          build-args: |
+            BUILD_SOURCE=https://github.com/${{ github.repository }}
+            BUILD_REVISION=${{ github.sha }}
+            BUILD_VERSION=${{ steps.version.outputs.version }}
+
   build-and-push:
+    if: startsWith(github.ref, 'refs/tags/v') || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
 
     permissions:
@@ -41,6 +94,11 @@ jobs:
             type=ref,event=branch
             type=ref,event=tag
 
+      - name: Read application version
+        id: version
+        shell: bash
+        run: echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
+
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
@@ -49,4 +107,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/amd64
+          build-args: |
+            BUILD_SOURCE=https://github.com/${{ github.repository }}
+            BUILD_REVISION=${{ github.sha }}
+            BUILD_VERSION=${{ steps.version.outputs.version }}
+          platforms: linux/amd64,linux/arm64
