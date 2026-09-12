@@ -266,7 +266,18 @@ See existing providers in `schedule_providers/` for complete examples.
 
 Credentials can also be saved from the **LiveBarn Sign-in** card on the web admin page. A saved admin override takes precedence over environment variables and persists in the SQLite database. Select **Use .env** to delete the saved override and return to `LIVEBARN_EMAIL`/`LIVEBARN_PASSWORD`. The UI never returns the saved password. Set `ADMIN_PASSWORD` to protect the admin UI, venue/favorite actions, and `/api/*` routes with HTTP Basic authentication. Playlist, XMLTV, health, and stream-proxy routes remain open for DVR clients.
 
-Stream refreshes use LiveBarn's playback API through `curl-cffi`. The first sign-in uses a short browser-assisted Auth0 step because LiveBarn protects it with AWS WAF; its DPoP-bound access token is then cached in `/data/livebarn.db` for roughly 12 hours. Legacy accounts may first need to sign in successfully at `https://watch.livebarn.com` in a normal browser and complete any migration or CAPTCHA prompts shown there.
+The unauthenticated `/health` response includes the application version plus
+secret-free schedule readiness and count fields. It does not test LiveBarn
+connectivity and should be treated as a local process/readiness signal.
+
+Stream refreshes use LiveBarn's playback API through `curl-cffi`. HLS master
+playlists select the highest available rendition deterministically using
+bandwidth and then resolution metadata; an already-media playlist is passed
+through to the relay. The first sign-in uses a short browser-assisted Auth0
+step because LiveBarn protects it with AWS WAF; its DPoP-bound access token is
+then cached in `/data/livebarn.db` for roughly 12 hours. Legacy accounts may
+first need to sign in successfully at `https://watch.livebarn.com` in a normal
+browser and complete any migration or CAPTCHA prompts shown there.
 
 ### Port Mapping
 
@@ -372,6 +383,7 @@ LivebarnScrape/
 │   ├── chiller_provider.py      # OhioHealth Chiller
 │   └── lgria_provider.py        # Lou & Gib Reese
 ├── build_catalog.py              # Venue catalog builder
+├── startup_db.py                 # Dependency-free startup database classifier
 ├── refresh_single.py             # Single stream refresh utility
 ├── livebarn_api.py               # OAuth and playback API client
 ├── hls_relay.py                  # curl-cffi HLS-to-MPEG-TS relay
@@ -418,6 +430,11 @@ LivebarnScrape/
    events = lgria_provider.fetch_schedule(datetime.now(), datetime.now() + timedelta(days=2))
    print(f'Found {len(events)} events')
    "
+   ```
+
+6. **Run the unit suite:**
+   ```bash
+   python -m unittest discover -s tests -v
    ```
 
 ### Building Docker Image
