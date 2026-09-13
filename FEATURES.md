@@ -108,3 +108,29 @@ The generated boundary remains a stable URL such as
 upstream URLs are excluded. Home Assistant should consume a separately secured
 go2rtc RTSP/WebRTC surface; keep go2rtc management loopback-only unless it is
 explicitly secured.
+
+## Disposable proxy staging test
+
+Run the opt-in integration checks with:
+
+```text
+RUN_GO2RTC_INTEGRATION=1 python -m unittest tests.test_go2rtc_integration -v
+```
+
+The staging harness creates temporary ports and directories, generates a small
+local H.264 MPEG-TS file, serves a synthetic HLS media playlist, starts the
+actual Flask `/proxy/123?mode=auto` route with only its stream lookup injected,
+and points go2rtc at that proxy URL. The tested path is:
+
+```text
+synthetic HLS -> LiveBarnScrape /proxy/123 -> go2rtc -> RTSP consumers
+```
+
+The integration test verifies two successful consumers and one go2rtc producer;
+the staging WSGI request counter verifies that go2rtc opened one proxy stream,
+while source counters record playlist and segment requests. The finite
+synthetic fixture permits deterministic cleanup. It does not emulate LiveBarn
+authentication, CDN TLS behavior, account/session limits, or VOD.
+
+The test uses loopback listeners and no go2rtc management exposure. It does not
+start Compose, install a service, modify Home Assistant, or enable acquisition.

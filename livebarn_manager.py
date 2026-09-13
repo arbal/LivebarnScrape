@@ -16,6 +16,7 @@ import re
 import signal
 import atexit
 import threading
+from urllib.parse import urlparse
 from datetime import datetime, timedelta, time as dt_time
 from collections import deque
 from typing import List, Dict, Tuple, Optional
@@ -269,6 +270,12 @@ def get_lan_ip():
     finally:
         s.close()
     return ip
+
+
+def is_hls_playlist_url(url: str) -> bool:
+    """Use the bounded HLS relay for recognized playlist URLs."""
+    path = urlparse(url).path.casefold()
+    return 'cdn-akamai-livebarn.akamaized.net' in url or path.endswith(('.m3u8', '.m3u'))
 
 
 def create_hourly_live_blocks(start: datetime, end: datetime, venue_name: str, surface_name: str) -> List[Tuple[datetime, datetime, str]]:
@@ -3205,7 +3212,7 @@ def proxy_stream(surface_id):
         )
         logger.info(f"   URL: {playlist_url[:80]}...")
 
-        if 'cdn-akamai-livebarn.akamaized.net' in playlist_url:
+        if is_hls_playlist_url(playlist_url):
             logger.info("    Launching curl-cffi HLS relay")
             chunk_count = 0
             try:
