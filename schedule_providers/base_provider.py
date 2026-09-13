@@ -12,13 +12,21 @@ from dataclasses import dataclass
 @dataclass
 class ScheduleEvent:
     """Standardized event format that all providers return"""
-    surface_id: int
+    surface_id: Optional[int]
     start_time: datetime
     end_time: datetime
     title: str
     description: Optional[str] = None
     event_type: Optional[str] = None  # "game", "practice", "public_skate", etc.
     raw_data: Optional[Dict] = None  # Original data for debugging
+    event_id: Optional[str] = None
+    team: Optional[str] = None
+    opponent: Optional[str] = None
+    venue: Optional[str] = None
+    surface_name: Optional[str] = None
+    feed_mode: Optional[str] = None
+    pre_roll_minutes: int = 0
+    post_roll_minutes: int = 0
 
 
 class ScheduleProvider(ABC):

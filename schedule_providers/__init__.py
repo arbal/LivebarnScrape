@@ -8,6 +8,7 @@ Each provider implements the ScheduleProvider interface and can be easily added/
 from .base_provider import ScheduleProvider, ScheduleEvent
 from .chiller_provider import ChillerProvider, chiller_provider
 from .lgria_provider import LGRIAProvider, lgria_provider
+from .generic_json_provider import GenericJsonScheduleProvider
 
 # Registry of all available providers
 ALL_PROVIDERS = [
@@ -23,4 +24,5 @@ __all__ = [
     'chiller_provider',
     'lgria_provider',
     'ALL_PROVIDERS',
+    'GenericJsonScheduleProvider',
 ]

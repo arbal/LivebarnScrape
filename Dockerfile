@@ -50,6 +50,10 @@ COPY refresh_single.py .
 COPY livebarn_api.py .
 COPY hls_relay.py .
 COPY schedule_utils.py .
+COPY vod.py .
+COPY acquisition.py .
+COPY go2rtc_config.py .
+COPY FEATURES.md .
 COPY credential_store.py .
 COPY entrypoint.sh .
 COPY static/ /app/static/

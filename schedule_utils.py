@@ -7,6 +7,15 @@ from typing import List, Dict, Tuple
 from schedule_providers import ScheduleEvent
 
 
+def display_event_title(event: ScheduleEvent) -> str:
+    """Return a generic team-aware title without requiring hockey semantics."""
+    if event.team and event.opponent:
+        return f"{event.team} vs {event.opponent}"
+    if event.team and event.event_type:
+        return f"{event.team} {event.event_type}"
+    return event.title or "Event"
+
+
 def group_events_by_surface(events: List[ScheduleEvent]) -> Dict[int, List[Dict[str, str]]]:
     """
     Group events by surface_id and convert to legacy format
@@ -15,6 +24,8 @@ def group_events_by_surface(events: List[ScheduleEvent]) -> Dict[int, List[Dict[
     grouped: Dict[int, List[Dict[str, str]]] = {}
     
     for event in events:
+        if event.surface_id is None:
+            continue
         if event.surface_id not in grouped:
             grouped[event.surface_id] = []
         
@@ -22,7 +33,7 @@ def group_events_by_surface(events: List[ScheduleEvent]) -> Dict[int, List[Dict[
         legacy_event = {
             "start_date": event.start_time.strftime("%Y-%m-%d %H:%M:%S.0"),
             "end_date": event.end_time.strftime("%Y-%m-%d %H:%M:%S.0"),
-            "text": event.title
+            "text": display_event_title(event)
         }
         grouped[event.surface_id].append(legacy_event)
     
