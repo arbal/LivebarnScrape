@@ -43,10 +43,14 @@ class GenericJsonScheduleProvider(ScheduleProvider):
         source: str | Path,
         mappings: Optional[Dict[str, int]] = None,
         timeout: float = 15.0,
+        max_bytes: int = 2_000_000,
         name: str = "Generic JSON schedule",
     ) -> None:
         self.source = str(source)
         self.timeout = timeout
+        if timeout <= 0 or max_bytes <= 0:
+            raise ValueError("timeout and max_bytes must be positive")
+        self.max_bytes = max_bytes
         self._name = name
         self._mappings = {_normal_name(k): int(v) for k, v in (mappings or {}).items()}
         self.unmapped_events: List[ScheduleEvent] = []
@@ -64,8 +68,17 @@ class GenericJsonScheduleProvider(ScheduleProvider):
         if parsed.scheme in {"http", "https"}:
             response = requests.get(self.source, timeout=self.timeout)
             response.raise_for_status()
-            return response.json()
-        return json.loads(Path(self.source).read_text(encoding="utf-8"))
+            payload = response.content
+            if len(payload) > self.max_bytes:
+                raise ValueError("schedule response exceeds configured size limit")
+            return json.loads(payload.decode("utf-8"))
+        if parsed.scheme:
+            raise ValueError("schedule source must be a local path or HTTP(S) URL")
+        path = Path(self.source)
+        payload = path.read_bytes()
+        if len(payload) > self.max_bytes:
+            raise ValueError("schedule file exceeds configured size limit")
+        return json.loads(payload.decode("utf-8"))
 
     def fetch_schedule(self, start_date: datetime, end_date: datetime) -> List[ScheduleEvent]:
         payload = self._read()
@@ -77,6 +90,8 @@ class GenericJsonScheduleProvider(ScheduleProvider):
 
         output: List[ScheduleEvent] = []
         self.unmapped_events = []
+        seen_ids = set()
+        seen_semantic = set()
         for record in records:
             if not isinstance(record, dict):
                 raise ValueError("each schedule event must be an object")
@@ -84,6 +99,15 @@ class GenericJsonScheduleProvider(ScheduleProvider):
             end = parse_schedule_datetime(record["end"])
             if end <= start:
                 raise ValueError("event end must be after start")
+            event_id = str(record["id"]) if record.get("id") is not None else None
+            semantic_key = (start, end, str(record.get("title") or "Untitled event"), record.get("venue"), record.get("surface"))
+            if event_id and event_id in seen_ids:
+                raise ValueError(f"duplicate event id: {event_id}")
+            if semantic_key in seen_semantic:
+                raise ValueError("duplicate equivalent schedule event")
+            if event_id:
+                seen_ids.add(event_id)
+            seen_semantic.add(semantic_key)
             if end <= start_date or start >= end_date:
                 continue
             explicit = record.get("surface_id")
@@ -105,7 +129,7 @@ class GenericJsonScheduleProvider(ScheduleProvider):
                 description=record.get("description"),
                 event_type=record.get("event_type"),
                 raw_data={k: v for k, v in record.items() if k not in {"password", "token", "pin"}},
-                event_id=str(record["id"]) if record.get("id") is not None else None,
+                event_id=event_id,
                 team=record.get("team"),
                 opponent=record.get("opponent"),
                 venue=record.get("venue"),

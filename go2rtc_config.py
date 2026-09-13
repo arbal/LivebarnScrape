@@ -30,5 +30,13 @@ def build_streams(
     return {"streams": streams}
 
 
+def build_test_config(surfaces, api_listen="127.0.0.1:1984", rtsp_listen="127.0.0.1:8554"):
+    """Build a loopback-only validation config; production callers own binding policy."""
+    config = build_streams(surfaces)
+    config["api"] = {"listen": api_listen}
+    config["rtsp"] = {"listen": rtsp_listen}
+    return config
+
+
 def render_json(surfaces: Iterable[Mapping[str, object]], base_url: str = "http://livebarn-manager:5000/proxy") -> str:
     return json.dumps(build_streams(surfaces, base_url), indent=2, sort_keys=True) + "\n"

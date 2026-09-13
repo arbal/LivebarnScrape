@@ -33,6 +33,7 @@ from credential_store import (
 )
 from hls_relay import HlsRelayError, iter_hls_stream
 from safe_logging import RedactingFormatter
+from schedule_runtime import GenericScheduleConfig, load_generic_snapshot
 # Import modular schedule providers
 from schedule_providers import ALL_PROVIDERS
 from schedule_utils import group_events_by_surface, fill_gaps_with_open_ice 
@@ -243,7 +244,10 @@ SQLITE_TIMEOUT = 3
 # Global cache for schedule data (all providers)
 SCHEDULE_CACHE = {
     'events_by_surface': {},
-    'last_updated': None
+    'last_updated': None,
+    'generic_last_attempt': None,
+    'generic_last_success': None,
+    'generic_error': None,
 }
 
 scheduler = None
@@ -315,6 +319,23 @@ def refresh_schedule():
             except Exception as e:
                 logger.error(f" {provider.name} failed: {e}")
         
+        # Optional generic schedule is loaded as a candidate.  A failed load
+        # does not replace a previous good generic snapshot or the cache.
+        generic_config = GenericScheduleConfig.from_environment()
+        if generic_config:
+            generic_events = []
+            try:
+                generic_events = load_generic_snapshot(generic_config)
+                all_events.extend(generic_events)
+                SCHEDULE_CACHE['generic_last_attempt'] = datetime.now()
+                SCHEDULE_CACHE['generic_last_success'] = datetime.now()
+                SCHEDULE_CACHE['generic_error'] = None
+            except Exception as exc:
+                SCHEDULE_CACHE['generic_last_attempt'] = datetime.now()
+                SCHEDULE_CACHE['generic_error'] = str(exc)
+                logger.error(" Generic schedule refresh failed; retaining last-known-good schedule: %s", exc)
+                return
+
         # Group events by surface using utility function
         events_by_surface = group_events_by_surface(all_events)
         
@@ -342,6 +363,12 @@ def get_health_status() -> dict:
             'last_refresh': last_updated.isoformat() if last_updated else None,
             'surface_count': len(events_by_surface),
             'event_count': sum(len(events) for events in events_by_surface.values()),
+        },
+        'generic_schedule': {
+            'configured': bool(os.getenv('GENERIC_SCHEDULE_SOURCE', '').strip()),
+            'last_attempt': SCHEDULE_CACHE.get('generic_last_attempt').isoformat() if SCHEDULE_CACHE.get('generic_last_attempt') else None,
+            'last_success': SCHEDULE_CACHE.get('generic_last_success').isoformat() if SCHEDULE_CACHE.get('generic_last_success') else None,
+            'error': SCHEDULE_CACHE.get('generic_last_error'),
         },
     }
 

@@ -33,6 +33,19 @@ services:
       - TZ=America/New_York  # Set your timezone for correct scheduling
       - LOG_LEVEL=INFO
 
+      # Optional generic JSON schedule; unset to keep built-in providers.
+      - GENERIC_SCHEDULE_SOURCE=${GENERIC_SCHEDULE_SOURCE:-}
+      - GENERIC_SCHEDULE_MAPPINGS=${GENERIC_SCHEDULE_MAPPINGS:-{}}
+      - GENERIC_SCHEDULE_TIMEZONE=${GENERIC_SCHEDULE_TIMEZONE:-UTC}
+      - GENERIC_SCHEDULE_TIMEOUT=${GENERIC_SCHEDULE_TIMEOUT:-15}
+      - GENERIC_SCHEDULE_MAX_BYTES=${GENERIC_SCHEDULE_MAX_BYTES:-2000000}
+      - GENERIC_SCHEDULE_PRE_ROLL_MINUTES=${GENERIC_SCHEDULE_PRE_ROLL_MINUTES:-0}
+      - GENERIC_SCHEDULE_POST_ROLL_MINUTES=${GENERIC_SCHEDULE_POST_ROLL_MINUTES:-0}
+
+      # Acquisition remains dry-run only in this release.
+      - ACQUISITION_ENABLED=${ACQUISITION_ENABLED:-false}
+      - ACQUISITION_DRY_RUN=${ACQUISITION_DRY_RUN:-true}
+
     volumes:
       # Persistent database storage - bind mount to host directory
       - ./data:/data

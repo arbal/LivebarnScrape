@@ -77,3 +77,34 @@ that this repository's exact proxy stream or multi-consumer fan-out works;
 The feature layer is synthetic-testable and disabled from automatic acquisition
 by default. It contains no private venue mappings, credentials, signed URLs, or
 real schedule data.
+
+## Manager configuration and reload
+
+Set `GENERIC_SCHEDULE_SOURCE` to an absolute JSON file path or an HTTP(S) URL.
+`GENERIC_SCHEDULE_MAPPINGS` is a JSON object mapping normalized venue or
+venue/surface names to LiveBarn surface IDs. Timestamps require an explicit
+offset or `Z`; `GENERIC_SCHEDULE_TIMEZONE` documents the source timezone and
+defaults to UTC. Reads have a bounded timeout and 2 MiB payload limit.
+
+The manager builds and validates a complete candidate before publishing it. A
+failed reload retains the last-known-good snapshot and reports only a safe
+error summary. Existing rink-specific providers remain available.
+
+`ACQUISITION_ENABLED=false` and `ACQUISITION_DRY_RUN=true` are the safe defaults.
+The state evaluator produces `execute: false` operation records only; this
+branch contains no recording or downloading execution path.
+
+## Local go2rtc integration evidence
+
+The optional integration test uses official go2rtc `v1.9.14` on Linux amd64,
+and a locally generated H.264 MPEG-TS fixture served over HTTP. A loopback-only
+go2rtc instance accepted the HTTP TS source and served RTSP to two concurrent
+FFmpeg consumers. The source observed one upstream HTTP connection and both
+consumers exited successfully. This is local synthetic evidence, not proof
+about an authenticated LiveBarn stream.
+
+The generated boundary remains a stable URL such as
+`http://livebarn-manager:5000/proxy/123?mode=auto`; credentials and signed
+upstream URLs are excluded. Home Assistant should consume a separately secured
+go2rtc RTSP/WebRTC surface; keep go2rtc management loopback-only unless it is
+explicitly secured.

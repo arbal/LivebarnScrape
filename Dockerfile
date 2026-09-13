@@ -52,6 +52,8 @@ COPY hls_relay.py .
 COPY schedule_utils.py .
 COPY vod.py .
 COPY acquisition.py .
+COPY acquisition_scheduler.py .
+COPY schedule_runtime.py .
 COPY go2rtc_config.py .
 COPY FEATURES.md .
 COPY credential_store.py .
