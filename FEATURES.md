@@ -67,6 +67,13 @@ credentials remain inside LiveBarnScrape. An ffmpeg-backed go2rtc source can
 be evaluated separately if direct HTTP MPEG-TS ingest is insufficient. This
 repository does not claim fan-out behavior without a go2rtc integration test.
 
+Current official go2rtc documentation lists HTTP TS input, FFmpeg sources, and
+RTSP/WebRTC/HLS/MSE outputs. Current Home Assistant documentation describes a
+go2rtc integration that can connect to a self-hosted instance and provide a
+WebRTC proxy. Those documents support this boundary design, but do not prove
+that this repository's exact proxy stream or multi-consumer fan-out works;
+`go2rtc` is not installed in the current test environment.
+
 The feature layer is synthetic-testable and disabled from automatic acquisition
 by default. It contains no private venue mappings, credentials, signed URLs, or
 real schedule data.
