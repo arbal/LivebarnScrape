@@ -7,7 +7,7 @@ from pathlib import Path
 from acquisition import plan_event
 from acquisition_scheduler import evaluate_plan, evaluate_plans
 from go2rtc_config import build_streams
-from schedule_runtime import AtomicScheduleSnapshot, GenericScheduleConfig, load_generic_snapshot
+from schedule_runtime import AtomicScheduleSnapshot, GenericScheduleConfig, acquisition_settings, load_generic_snapshot
 from schedule_providers.generic_json_provider import GenericJsonScheduleProvider
 from schedule_utils import display_event_title, group_events_by_surface
 
@@ -57,6 +57,11 @@ class ScheduleRuntimeTest(unittest.TestCase):
             provider.fetch_schedule(datetime(2026, 1, 1, tzinfo=timezone.utc), datetime(2026, 1, 2, tzinfo=timezone.utc))
         with self.assertRaises(ValueError):
             GenericScheduleConfig("ftp://example.invalid/events.json")
+
+    def test_real_acquisition_configuration_is_rejected(self):
+        self.assertEqual(acquisition_settings({})["execution"], "dry-run-only")
+        with self.assertRaisesRegex(ValueError, "real acquisition"):
+            acquisition_settings({"ACQUISITION_ENABLED": "true", "ACQUISITION_DRY_RUN": "false"})
 
 
 if __name__ == "__main__":

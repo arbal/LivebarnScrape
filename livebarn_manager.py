@@ -33,7 +33,7 @@ from credential_store import (
 )
 from hls_relay import HlsRelayError, iter_hls_stream
 from safe_logging import RedactingFormatter
-from schedule_runtime import GenericScheduleConfig, load_generic_snapshot
+from schedule_runtime import GenericScheduleConfig, acquisition_settings, load_generic_snapshot
 # Import modular schedule providers
 from schedule_providers import ALL_PROVIDERS
 from schedule_utils import group_events_by_surface, fill_gaps_with_open_ice 
@@ -355,6 +355,12 @@ def get_health_status() -> dict:
     """Return cheap liveness plus explicitly scoped schedule state."""
     events_by_surface = SCHEDULE_CACHE.get('events_by_surface') or {}
     last_updated = SCHEDULE_CACHE.get('last_updated')
+    try:
+        acquisition = acquisition_settings()
+        acquisition_error = None
+    except ValueError as exc:
+        acquisition = {'enabled': False, 'dry_run': False, 'execution': 'rejected'}
+        acquisition_error = str(exc)
     return {
         'status': 'ok',
         'version': APP_VERSION,
@@ -370,6 +376,7 @@ def get_health_status() -> dict:
             'last_success': SCHEDULE_CACHE.get('generic_last_success').isoformat() if SCHEDULE_CACHE.get('generic_last_success') else None,
             'error': SCHEDULE_CACHE.get('generic_last_error'),
         },
+        'acquisition': {**acquisition, 'error': acquisition_error},
     }
 
 

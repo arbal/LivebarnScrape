@@ -93,3 +93,13 @@ class AtomicScheduleSnapshot:
         self.last_success = now
         self.last_error = None
         return True
+
+
+def acquisition_settings(environ: Optional[dict] = None) -> dict:
+    """Return safe acquisition flags; non-dry execution is rejected."""
+    env = os.environ if environ is None else environ
+    enabled = env.get("ACQUISITION_ENABLED", "false").casefold() == "true"
+    dry_run = env.get("ACQUISITION_DRY_RUN", "true").casefold() == "true"
+    if enabled and not dry_run:
+        raise ValueError("real acquisition is not supported; ACQUISITION_DRY_RUN must remain true")
+    return {"enabled": enabled, "dry_run": dry_run, "execution": "dry-run-only"}
